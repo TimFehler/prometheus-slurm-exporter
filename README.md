@@ -11,7 +11,7 @@ docker build -t slurm_exporter .
 
 Run Docker image with
 ```
-docker run slurm_exporter
+docker run --env-file .env slurm_exporter
 ```
 
 ## Author 
