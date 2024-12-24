@@ -58,4 +58,15 @@ if __name__ == "__main__":
 
     num_jobs = client.run_command("squeue -h | wc -l")
 
-    print(f"Number of jobs: {num_jobs}")
+    # Start the Prometheus metrics server
+    start_http_server(8000)
+
+    # Create a Prometheus gauge
+    jobs_gauge = Gauge("slurm_jobs", "Number of jobs in the Slurm queue")
+
+    while True:
+        # Set the gauge to the number of jobs in the Slurm queue
+        jobs_gauge.set(int(num_jobs))
+
+        # Sleep for 10 seconds
+        time.sleep(60)
