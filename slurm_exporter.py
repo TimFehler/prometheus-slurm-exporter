@@ -56,17 +56,19 @@ if __name__ == "__main__":
     # Create a RemoteClient instance
     client = RemoteClient(SSH_HOST, SSH_USER, SSH_PASS, SSH_PORT)
 
-    num_jobs = client.run_command("squeue -h | wc -l")
-
     # Start the Prometheus metrics server
     start_http_server(8000)
 
-    # Create a Prometheus gauge
-    jobs_gauge = Gauge("slurm_jobs", "Number of jobs in the Slurm queue")
+    # Create Prometheus gauges
+    num_jobs_submitted_gauge = Gauge("slurm_jobs", "Number of jobs in the Slurm queue")
+    num_jobs_running_gauge = Gauge("slurm_jobs_running", "Number of jobs running in the Slurm queue")
 
+    # Continuously update the Prometheus gauges
     while True:
-        # Set the gauge to the number of jobs in the Slurm queue
-        jobs_gauge.set(int(num_jobs))
+        num_jobs_submitted = client.run_command("squeue -h | wc -l")
+        num_jobs_submitted_gauge.set(int(num_jobs_submitted))
 
-        # Sleep for 10 seconds
+        num_jobs_running = client.run_command("squeue -h -t R | wc -l")
+        num_jobs_running_gauge.set(int(num_jobs_running))
+
         time.sleep(60)

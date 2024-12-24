@@ -6,13 +6,14 @@ Expose metrics of a SLURM instance only accessible via SSH to Prometheus.
 
 Build Docker image with
 ```
-docker build -t slurm_exporter .
+docker compose build
 ```
 
 Run Docker image with
 ```
-docker run --env-file .env slurm_exporter
+docker compose up [-d]
 ```
+Use the `-d` to detach from the running container.
 
 ## Author 
 
