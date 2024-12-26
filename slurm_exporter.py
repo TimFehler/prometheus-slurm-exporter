@@ -60,15 +60,36 @@ if __name__ == "__main__":
     start_http_server(8000)
 
     # Create Prometheus gauges
-    num_jobs_submitted_gauge = Gauge("slurm_jobs", "Number of jobs in the Slurm queue")
+    num_jobs_pending_gauge = Gauge("slurm_jobs", "Number of jobs pending in the Slurm queue")
     num_jobs_running_gauge = Gauge("slurm_jobs_running", "Number of jobs running in the Slurm queue")
+
+    num_nodes_total_gauge = Gauge("slurm_nodes_total", "Total number of nodes in the Slurm cluster")
+    num_nodes_allocated_gauge = Gauge("slurm_nodes_allocated", "Number of nodes allocated in the Slurm cluster")
+    num_nodes_mixed_gauge = Gauge("slurm_nodes_mixed", "Number of nodes in mixed state in the Slurm cluster")
+    num_nodes_idle_gauge = Gauge("slurm_nodes_idle", "Number of nodes idle in the Slurm cluster")
+    num_nodes_down_gauge = Gauge("slurm_nodes_down", "Number of nodes down in the Slurm cluster")
 
     # Continuously update the Prometheus gauges
     while True:
-        num_jobs_submitted = client.run_command("squeue -h | wc -l")
-        num_jobs_submitted_gauge.set(int(num_jobs_submitted))
+        num_jobs_pending = client.run_command("squeue -h --array -t pending | wc -l")
+        num_jobs_pending_gauge.set(int(num_jobs_pending))
 
-        num_jobs_running = client.run_command("squeue -h -t R | wc -l")
+        num_jobs_running = client.run_command("squeue -h --array -t running | wc -l")
         num_jobs_running_gauge.set(int(num_jobs_running))
+
+        num_nodes_total = client.run_command("sinfo -N -h | awk {print\ \$1} | sort | uniq | wc -l")
+        num_nodes_total_gauge.set(int(num_nodes_total))
+
+        num_nodes_allocated = client.run_command("sinfo -N -h --state=alloc | awk {print\ \$1} | sort | uniq | wc -l")
+        num_nodes_allocated_gauge.set(int(num_nodes_allocated))
+
+        num_nodes_mixed = client.run_command("sinfo -N -h --state=mixed | awk {print\ \$1} | sort | uniq | wc -l")
+        num_nodes_mixed_gauge.set(int(num_nodes_mixed))
+
+        num_nodes_idle = client.run_command("sinfo -N -h --state=idle | awk {print\ \$1} | sort | uniq | wc -l")
+        num_nodes_idle_gauge.set(int(num_nodes_idle))
+
+        num_nodes_down = client.run_command("sinfo -N -h --state=down | awk {print\ \$1} | sort | uniq | wc -l")
+        num_nodes_down_gauge.set(int(num_nodes_down))
 
         time.sleep(60)
