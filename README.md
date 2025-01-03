@@ -13,7 +13,7 @@ Run Docker image with
 ```
 docker compose up [-d]
 ```
-Use the `-d` to detach from the running container.
+Use the flag `-d` to detach from the running container.
 
 ## Author 
 
