@@ -60,7 +60,7 @@ if __name__ == "__main__":
     start_http_server(8000)
 
     # Create Prometheus gauges
-    num_jobs_pending_gauge = Gauge("slurm_jobs", "Number of jobs pending in the Slurm queue")
+    num_jobs_pending_gauge = Gauge("slurm_jobs_pending", "Number of jobs pending in the Slurm queue")
     num_jobs_running_gauge = Gauge("slurm_jobs_running", "Number of jobs running in the Slurm queue")
 
     num_nodes_total_gauge = Gauge("slurm_nodes_total", "Total number of nodes in the Slurm cluster")
