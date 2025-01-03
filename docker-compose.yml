@@ -4,5 +4,7 @@ services:
     env_file:
       - .env
     ports:
-      - ${EXPOSED_PORT}:8000  # Expose port 8000 to the host 
+      - ${EXPOSED_PORT}:8000  # Expose port 8000 to the host
+    volumes:
+      - ${SLURM_SSH_KEY}:/usr/src/app/id_rsa:ro # Mount the SSH key specified in .env file to the container
     restart: unless-stopped

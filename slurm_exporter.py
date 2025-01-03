@@ -1,18 +1,11 @@
 import os 
-import sys
 import requests
 from fabric import Connection
 import time
 from prometheus_client import start_http_server, Gauge
 
-SSH_HOST = os.environ.get('SLURM_SSH_HOST')
-SSH_USER = os.environ.get('SLURM_SSH_USER')
-SSH_PASS = os.environ.get('SLURM_SSH_PASS')
-SSH_PORT = os.environ.get('SLURM_SSH_PORT')   
-
-
 class RemoteClient:
-    def __init__(self, hostname: str, user: str, password: str, port: int):
+    def __init__(self, hostname: str, user: str, port: int):
         """
         Initialize the RemoteClient with connection details.
 
@@ -23,8 +16,8 @@ class RemoteClient:
         """
         self.hostname = hostname
         self.user = user
-        self.password = password
         self.port = port
+        self.key = "/usr/src/app/id_rsa"
 
     def run_command(self, command: str) -> str:
         """
@@ -34,11 +27,11 @@ class RemoteClient:
         :return: The command's output.
         """
         try:
-            # Create a connection to the remote client
+            # Create a connection to the remote client using a public keyfile
             connection = Connection(
                 host=self.hostname,
                 user=self.user,
-                connect_kwargs={"password": self.password},
+                connect_kwargs={"key_filename": self.key},
                 port=self.port
             )
 
@@ -53,8 +46,15 @@ class RemoteClient:
             return f"An error occurred: {str(e)}"
 
 if __name__ == "__main__":
+    # Get the SSH connection details from environment variables
+    SSH_HOST = os.environ.get('SLURM_SSH_HOST')
+    SSH_USER = os.environ.get('SLURM_SSH_USER')
+    SSH_PORT = os.environ.get('SLURM_SSH_PORT')
+
+    SCRAPE_INTERVAL = int(os.environ.get('SCRAPE_INTERVAL'))
+
     # Create a RemoteClient instance
-    client = RemoteClient(SSH_HOST, SSH_USER, SSH_PASS, SSH_PORT)
+    client = RemoteClient(SSH_HOST, SSH_USER, SSH_PORT)
 
     # Start the Prometheus metrics server
     start_http_server(8000)
@@ -92,4 +92,4 @@ if __name__ == "__main__":
         num_nodes_down = client.run_command("sinfo -N -h --state=down | awk {print\ \$1} | sort | uniq | wc -l")
         num_nodes_down_gauge.set(int(num_nodes_down))
 
-        time.sleep(60)
+        time.sleep(SCRAPE_INTERVAL)
