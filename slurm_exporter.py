@@ -1,4 +1,4 @@
-import os 
+import os
 import requests
 from fabric import Connection
 import time
@@ -37,7 +37,7 @@ class RemoteClient:
 
             # Run the command and capture the result
             result = connection.run(f"bash -lc '{command}'", hide=True)
-            
+
             # Close the connection
             connection.close()
 
@@ -69,6 +69,13 @@ if __name__ == "__main__":
     num_nodes_idle_gauge = Gauge("slurm_nodes_idle", "Number of nodes idle in the Slurm cluster")
     num_nodes_down_gauge = Gauge("slurm_nodes_down", "Number of nodes down in the Slurm cluster")
 
+    server_thread_count_gauge = Gauge("slurm_server_thread_count", "Number of threads in the Slurm controller")
+    server_agent_queue_size_gauge = Gauge("slurm_server_agent_queue_size", "Size of the Slurm controller agent queue")
+
+    length_schedule_cycle_last_gauge = Gauge("slurm_length_schedule_cycle_last", "Length of the last scheduling cycle in milliseconds")
+    length_schedule_cycle_avg_gauge = Gauge("slurm_length_schedule_cycle_avg", "Average length of scheduling cycles in milliseconds")
+
+
     # Continuously update the Prometheus gauges
     while True:
         num_jobs_pending = client.run_command("squeue -h --array -t pending | wc -l")
@@ -91,5 +98,17 @@ if __name__ == "__main__":
 
         num_nodes_down = client.run_command("sinfo -N -h --state=down | awk {print\ \$1} | sort | uniq | wc -l")
         num_nodes_down_gauge.set(int(num_nodes_down))
+
+        server_thread_count = client.run_command("sdiag | grep -m 1 Server\ thread\ count | awk {print\ \$4}")
+        server_thread_count_gauge.set(int(server_thread_count))
+
+        server_agent_queue_size = client.run_command("sdiag | grep -m 1 Agent\ queue\ size | awk {print\ \$4}")
+        server_agent_queue_size_gauge.set(int(server_agent_queue_size))
+
+        length_schedule_cycle_last = client.run_command("sdiag | grep -m 1 Last\ cycle | awk {print\ \$3}")
+        length_schedule_cycle_last_gauge.set(float(length_schedule_cycle_last))
+
+        length_schedule_cycle_avg = client.run_command("sdiag | grep -m 1 Mean\ cycle | awk {print\ \$3}")
+        length_schedule_cycle_avg_gauge.set(float(length_schedule_cycle_avg))
 
         time.sleep(SCRAPE_INTERVAL)
