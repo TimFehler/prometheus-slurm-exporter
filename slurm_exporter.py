@@ -5,7 +5,7 @@ import time
 from prometheus_client import start_http_server, Gauge
 
 class RemoteClient:
-    def __init__(self, hostname: str, user: str, port: int):
+    def __init__(self, hostname: str, user: str, port: int, timeout: int = 600):
         """
         Initialize the RemoteClient with connection details.
 
@@ -18,6 +18,33 @@ class RemoteClient:
         self.user = user
         self.port = port
         self.key = "/usr/src/app/id_rsa"
+        self.timeout = timeout # timeout in seconds, default is 10 minutes
+
+        self.connection = Connection(
+            host=self.hostname,
+            user=self.user,
+            connect_kwargs={"key_filename": self.key},
+            port=self.port,
+            connect_timeout=self.timeout # connection timeout without activity
+        )
+
+    def open(self):
+        """
+        Reopen the connection to the remote machine.
+        """
+        try:
+           self.connection.open()
+        except Exception as e:
+            print(f"An error occurred: {str(e)}")
+
+    def close(self):
+        """
+        Disconnect from the remote machine.
+        """
+        try:
+            self.connection.close()
+        except Exception as e:
+            print(f"An error occurred: {str(e)}")
 
     def run_command(self, command: str) -> str:
         """
@@ -26,35 +53,29 @@ class RemoteClient:
         :param command: The shell command to execute.
         :return: The command's output.
         """
-        try:
-            # Create a connection to the remote client using a public keyfile
-            connection = Connection(
-                host=self.hostname,
-                user=self.user,
-                connect_kwargs={"key_filename": self.key},
-                port=self.port
-            )
+        # Run the command and capture the result
+        result = self.connection.run(f"bash -lc '{command}'", hide=True)
 
-            # Run the command and capture the result
-            result = connection.run(f"bash -lc '{command}'", hide=True)
+        return result.stdout.strip()
 
-            # Close the connection
-            connection.close()
+class Timer():
+    def __init__(self):
+        self.start_time = time.time()
 
-            return result.stdout.strip()
-        except Exception as e:
-            return f"An error occurred: {str(e)}"
+    def reset(self):
+        self.start_time = time.time()
+
+    def elapsed(self):
+        return time.time() - self.start_time
 
 if __name__ == "__main__":
     # Get the SSH connection details from environment variables
     SSH_HOST = os.environ.get('SLURM_SSH_HOST')
     SSH_USER = os.environ.get('SLURM_SSH_USER')
     SSH_PORT = os.environ.get('SLURM_SSH_PORT')
+    SSH_TIMEOUT = int(os.environ.get('SLURM_SSH_TIMEOUT')) # timeout in seconds, default is 10 minutes
 
     SCRAPE_INTERVAL = int(os.environ.get('SCRAPE_INTERVAL'))
-
-    # Create a RemoteClient instance
-    client = RemoteClient(SSH_HOST, SSH_USER, SSH_PORT)
 
     # Start the Prometheus metrics server
     start_http_server(8000)
@@ -75,9 +96,19 @@ if __name__ == "__main__":
     length_schedule_cycle_last_gauge = Gauge("slurm_length_schedule_cycle_last", "Length of the last scheduling cycle in milliseconds")
     length_schedule_cycle_avg_gauge = Gauge("slurm_length_schedule_cycle_avg", "Average length of scheduling cycles in milliseconds")
 
+    duration_of_current_SSH_session_gauge = Gauge("duration_of_current_SSH_session", "Duration of current SSH session in seconds")
+
+    # Create a RemoteClient instance
+    client = RemoteClient(SSH_HOST, SSH_USER, SSH_PORT, SSH_TIMEOUT)
+    mytimer = Timer()
 
     # Continuously update the Prometheus gauges
     while True:
+        # Check if still connected, if not establish a connection
+        if not client.connection.is_connected:
+            client.open()
+            mytimer.reset()
+
         num_jobs_pending = client.run_command("squeue -h --array -t pending | wc -l")
         num_jobs_pending_gauge.set(int(num_jobs_pending))
 
@@ -110,5 +141,12 @@ if __name__ == "__main__":
 
         length_schedule_cycle_avg = client.run_command("sdiag | grep -m 1 Mean\ cycle | awk {print\ \$3}")
         length_schedule_cycle_avg_gauge.set(float(length_schedule_cycle_avg))
+
+        duration_of_current_SSH_session_gauge.set(mytimer.elapsed())
+
+        # Force reconnection if the duration of the current SSH session exceeds the timeout
+        # This ensures that the connection does not block the remote machine indefinitely
+        if mytimer.elapsed() >= client.timeout:
+            client.close()
 
         time.sleep(SCRAPE_INTERVAL)
